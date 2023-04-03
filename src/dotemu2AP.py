@@ -38,46 +38,71 @@ def adpcm(infile, outfile="vroma0"):
   outdata.flatten().tofile(outfile)
   return outdata.flatten()
   
-####### TODO
-#### check out http://i486.mods.jp/neogeo/tiles2crom.txt
 
-	# for (i = 0; i < length; i += 0x80)
-	# {
-		# int y;
-		# for (y = 0; y < 0x10; y++)
-		# {
-			# DWORD dstData = 0;
-			# int x;
-			# dstData = newSprites[i+(y*8)] + (newSprites[i+1+(y*8)]<<8) + (newSprites[i+2+(y*8)]<<16) + (newSprites[i+3+(y*8)]<<24);
-			# for (x = 0; x < 8; x++)
-			# {
-				# if((dstData >> (x*4+3)) & 0x01) src[(i+0x43) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+2)) & 0x01) src[(i+0x41) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+1)) & 0x01) src[(i+0x42) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+0)) & 0x01) src[(i+0x40) | (y << 2)] |= (1 << x);
-			# }
-			# dstData = newSprites[i+4+(y*8)] + (newSprites[i+5+(y*8)]<<8) + (newSprites[i+6+(y*8)]<<16) + (newSprites[i+7+(y*8)]<<24);
-			# for (x = 0; x < 8; x++)
-			# {
-				# if((dstData >> (x*4+3)) & 0x01) src[(i+0x03) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+2)) & 0x01) src[(i+0x01) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+1)) & 0x01) src[(i+0x02) | (y << 2)] |= (1 << x);
-				# if((dstData >> (x*4+0)) & 0x01) src[(i+0x00) | (y << 2)] |= (1 << x);
-			# }
-		# }
-	# }  
+ 
+## translated from js taken from cxx https://gist.github.com/cxx/81b9f45eb5b3cb87b4f3783ccdf8894f ################################################################################
 def tiles(infile, outfile="crom0"):
-  data = np.fromfile(infile, dtype='b')
+  data = np.fromfile(infile, dtype='>u1')
   filelen = len(data)
-  outdata = np.zeros_like(data)
+  
   dlen = 128
-  for i in np.arange(int(filelen/dlen))*dlen:
-    tmp = np.zeros(dlen)
-    for y in np.arange(int(dlen/8)):
+
+  outdata = np.copy(data)
+
+  for i in (np.arange(int(filelen/0x80))*0x80):
+
+    tmp = np.zeros(dlen, dtype=int)
+
+    for y in np.arange(0x10):
       dstData = data[i+(y*8)+0] <<  0 | data[i+(y*8)+1] <<  8 | data[i+(y*8)+2] << 16 | data[i+(y*8)+3] << 24
+      
+      for x in np.arange(int(8)):
+        tmp[0x43 | y << 2] |= (dstData >> x*4+3 & 1) << 7-x
+        tmp[0x41 | y << 2] |= (dstData >> x*4+2 & 1) << 7-x
+        tmp[0x42 | y << 2] |= (dstData >> x*4+1 & 1) << 7-x
+        tmp[0x40 | y << 2] |= (dstData >> x*4+0 & 1) << 7-x
+
+      dstData = data[i+(y*8)+4] <<  0 | data[i+(y*8)+5] <<  8 | data[i+(y*8)+6] << 16 | data[i+(y*8)+7] << 24
+      
+      for x in np.arange(int(8)):
+        tmp[0x03 | y << 2] |= (dstData >> x*4+3 & 1) << 7-x
+        tmp[0x01 | y << 2] |= (dstData >> x*4+2 & 1) << 7-x
+        tmp[0x02 | y << 2] |= (dstData >> x*4+1 & 1) << 7-x
+        tmp[0x00 | y << 2] |= (dstData >> x*4+0 & 1) << 7-x
+    outdata[i:i+dlen] = np.copy(tmp)
+		
   outdata.flatten().tofile(outfile)
   return outdata.flatten()
+
+# def tiles(infile, outfile="crom0"):
+  # data = np.fromfile(infile, dtype='>u1')
+  # filelen = len(data)
+  # # data = data.reshape((int(filelen/0x80), 0x80))
+  # data = data.reshape((0x80, int(filelen/0x80)))
+  # dlen = 128
+
+  # outdata = np.zeros_like(data)
+
+  # for y in np.arange(0x10):
+    # dstData = data[:, (y*8)+0] <<  0 | data[:, (y*8)+1] <<  8 | data[:, (y*8)+2] << 16 | data[:, (y*8)+3] << 24
   
+  # for x in np.arange(int(8)):
+    # outdata[:, 0x43 | y << 2] |= (dstData >> x*4+3 & 1) << 7-x
+    # outdata[:, 0x41 | y << 2] |= (dstData >> x*4+2 & 1) << 7-x
+    # outdata[:, 0x42 | y << 2] |= (dstData >> x*4+1 & 1) << 7-x
+    # outdata[:, 0x40 | y << 2] |= (dstData >> x*4+0 & 1) << 7-x
+
+  # dstData = data[:, (y*8)+4] <<  0 | data[:, (y*8)+5] <<  8 | data[:, (y*8)+6] << 16 | data[:, (y*8)+7] << 24
+  
+  # for x in np.arange(int(8)):
+    # outdata[:, 0x03 | y << 2] |= (dstData >> x*4+3 & 1) << 7-x
+    # outdata[:, 0x01 | y << 2] |= (dstData >> x*4+2 & 1) << 7-x
+    # outdata[:, 0x02 | y << 2] |= (dstData >> x*4+1 & 1) << 7-x
+    # outdata[:, 0x00 | y << 2] |= (dstData >> x*4+0 & 1) << 7-x
+	
+  # outdata.flatten().tofile(outfile)
+  # return outdata.flatten()
+    
   
 sfixfile = glob.glob('*_game_sfix')[0]
 sfix(sfixfile)
